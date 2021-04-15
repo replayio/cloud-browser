@@ -1,7 +1,7 @@
 const fs = require("fs");
 const WebSocket = require("ws");
 const { launchBrowser } = require("./launcher");
-const { assert, defer } = require("./utils");
+const { assert, defer } = require("../utils");
 
 const { serverHost } = JSON.parse(fs.readFileSync(
   `${process.env.HOME}/cloud-browser-config.json`
