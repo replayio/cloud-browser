@@ -2,6 +2,9 @@ const https = require("https");
 const fs = require("fs");
 const WebSocket = require("ws");
 
+// Port to listen on for websocket connections.
+const WSSPort = 8000;
+
 const certOptions = {
   key: fs.readFileSync(`${process.env.HOME}/privkey.pem`),
   cert: fs.readFileSync(`${process.env.HOME}/fullchain.pem`),
@@ -31,82 +34,127 @@ function getContentType(file) {
   return "";
 }
 
-let innerSocket, outerSocket;
-const innerIceCandidates = [];
-let innerOffer;
+const wssHTTPS = https.createServer(certOptions);
+const wssServer = new WebSocket.Server({ server: wssHTTPS });
+wssHTTPS.listen(WSSPort);
+wssServer.on("connection", socket => new SocketInfo(socket));
 
-const innerHTTPS = https.createServer(certOptions);
-const innerWSS = new WebSocket.Server({ server: innerHTTPS });
-innerHTTPS.listen(8001);
-innerWSS.on("connection", socket => {
-  innerSocket = socket;
-  console.log("InnerConnection");
+let gBrowserSocket;
+let gViewerSocket;
 
-  innerSocket.on("message", msg => {
-    console.log("InnerMessage", msg);
-    msg = JSON.parse(msg);
+// Information about a websocket that has connected to us.
+class SocketInfo {
+  constructor(socket) {
+    console.log("NewConnection");
 
-    switch (msg.kind) {
-    case "IceCandidate":
-      assert(!outerSocket);
-      innerIceCandidates.push(msg.candidate);
-      break;
-    case "Offer":
-      assert(!innerOffer);
-      assert(!outerSocket);
-      innerOffer = msg.offer;
-      break;
-    default:
-      console.error(`Unexpected message ${JSON.stringify(msg)}`);
-    }
-  });
-});
+    // Raw WebSocket.
+    this.socket = socket;
 
-const outerHTTPS = https.createServer(certOptions);
-const outerWSS = new WebSocket.Server({ server: outerHTTPS });
-outerHTTPS.listen(8002);
-outerWSS.on("connection", socket => {
-  outerSocket = socket;
-  console.log("OuterConnection");
+    // Kind of socket, if known.
+    // BrowserManager: Singleton module which creates/destroys browsers.
+    // Browser: Recording browser created by the BrowserManager.
+    // Viewer: Client wanting to view/control a browser.
+    this.kind = null;
 
-  assert(innerOffer);
-  socket.send(JSON.stringify({
-    kind: "Offer",
-    offer: innerOffer,
-  }));
+    // For Browser/Viewer sockets, any ICE candidates we've been sent.
+    this.iceCandidates = [];
 
-  assert(innerIceCandidates.length);
-  for (const candidate of innerIceCandidates) {
-    socket.send(JSON.stringify({
-      kind: "IceCandidate",
-      candidate,
-    }));
+    // For Browser sockets, any RTC offer this has generated.
+    this.offer = null;
+
+    // For Browser/Viewer sockets, the peer socket for RTC connections if known.
+    this.peerSocket = null;
+
+    this.socket.on("message", msg => {
+      try {
+        this.onMessage(JSON.parse(msg));
+      } catch (e) {
+        this.onError(`Exception ${e} ${e.stack}`);
+      }
+    });
   }
 
-  outerSocket.on("message", msg => {
-    console.log("OuterMessage", msg);
-    msg = JSON.parse(msg);
+  onError(why) {
+    console.error(`Socket error ${why}, closing.`);
+    this.socket.close();
+  }
+
+  onMessage(msg) {
+    console.log(`OnMessage ${this.kind} ${JSON.stringify(msg)}`);
+
+    // The first message sent must identify the kind of socket.
+    if (msg.kind == "Identify") {
+      this.kind = msg.socketKind;
+      switch (this.kind) {
+      case "Browser":
+        assert(!gBrowserSocket);
+        assert(!gViewerSocket);
+        gBrowserSocket = this;
+        break;
+      case "Viewer":
+        assert(gBrowserSocket);
+        assert(!gViewerSocket);
+        gViewerSocket = this;
+        gBrowserSocket.setPeerSocket(this);
+        this.setPeerSocket(gBrowserSocket);
+        break;
+      default:
+        throw new Error(`Unknown socket kind ${this.kind}`);
+      }
+      return;
+    }
+    assert(this.kind);
 
     switch (msg.kind) {
-    case "Answer":
-      assert(innerSocket);
-      innerSocket.send(JSON.stringify({
-        kind: "Answer",
-        answer: msg.answer,
-      }));
-      break;
     case "IceCandidate":
-      assert(innerSocket);
-      innerSocket.send(JSON.stringify({
-        kind: "IceCandidate",
-        candidate: msg.candidate,
-      }));
+      assert(this.kind == "Browser" || this.kind == "Viewer");
+      this.iceCandidates.push(msg.candidate);
+      if (this.peerSocket) {
+        this.peerSocket.sendIceCandidate(msg.candidate);
+      }
+      break;
+    case "Offer":
+      assert(this.kind == "Browser");
+      this.offer = msg.offer;
+      if (this.peerSocket) {
+        this.peerSocket.sendOffer(msg.offer);
+      }
+      break;
+    case "Answer":
+      assert(this.kind == "Viewer");
+      assert(this.peerSocket);
+      this.peerSocket.sendMessage({ kind: "Answer", answer: msg.answer });
       break;
     default:
-      console.error("UnknownMessage", msg);
+      throw new Error(`Unknown message kind ${msg.kind}`);
     }
-  });
-});
+  }
+
+  sendMessage(msg) {
+    this.socket.send(JSON.stringify(msg));
+  }
+
+  sendIceCandidate(candidate) {
+    this.sendMessage({ kind: "IceCandidate", candidate });
+  }
+
+  sendOffer(offer) {
+    this.sendMessage({ kind: "Offer", offer });
+  }
+
+  setPeerSocket(socket) {
+    assert(!this.peerSocket);
+    this.peerSocket = socket;
+
+    if (this.offer) {
+      this.peerSocket.sendOffer(this.offer);
+    }
+
+    for (const candidate of this.iceCandidates) {
+      this.peerSocket.sendIceCandidate(candidate);
+    }
+  }
+};
 
 function assert(v) {
   if (!v) {

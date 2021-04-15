@@ -8,15 +8,21 @@
 let socket;
 let socketConnectedWaiter;
 
-function initSocket() {
+async function initSocket() {
   const url = new URL(window.location.href);
   const { hostname } = url;
 
-  socket = new WebSocket(`wss://${hostname}:8002`);
+  socket = new WebSocket(`wss://${hostname}:8000`);
   socket.addEventListener("message", onSocketMessage);
 
   socketConnectedWaiter = defer();
-  socket.addEventListener("open", socketConnectedWaiter.resolve);
+
+  const waiter = defer();
+  socket.addEventListener("open", waiter.resolve);
+  await waiter.promise;
+
+  socket.send(JSON.stringify({ kind: "Identify", socketKind: "Viewer" }));
+  socketConnectedWaiter.resolve();
 }
 initSocket();
 
