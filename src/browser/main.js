@@ -1,6 +1,6 @@
 const fs = require("fs");
 const WebSocket = require("ws");
-const { launchBrowser } = require("./launcher");
+const { launchBrowser, finishBrowser } = require("./launcher");
 const { assert, defer } = require("../utils");
 const { getConfig } = require("./config");
 
@@ -26,28 +26,28 @@ function sendSocketMessage(msg) {
   socket.send(JSON.stringify(msg));
 }
 
-const gBrowsersById = new Map();
-
 async function onSocketMessage(msg) {
   msg = JSON.parse(msg);
 
   switch (msg.kind) {
-  case "SpawnBrowser": {
-    const browser = await launchBrowser({
+  case "SpawnBrowser":
+    launchBrowser({
       browserId: msg.browserId,
       url: msg.url,
     });
-    gBrowsersById.set(msg.browserId, browser);
     break;
-  }
-  case "StopBrowser": {
-    const browser = gBrowsersById.get(msg.browserId);
-    if (browser) {
-      browser.close();
-      gBrowsersById.delete(msg.browserId);
+  case "StopBrowser":
+    const recordings = await finishBrowser(msg.browserId);
+    for (const { recordingId, url, dispatchServer } of recordings) {
+      sendSocketMessage({
+        kind: "NewRecording",
+        browserId: msg.browserId,
+        recordingId,
+        url,
+        dispatchServer,
+      });
     }
     break;
-  }
   default:
     console.error("UnknownMessageKind", msg.kind);
   }

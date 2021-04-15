@@ -13,4 +13,8 @@ function defer() {
   return { promise, resolve, reject };
 }
 
-module.exports = { assert, defer };
+function waitForTime(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+module.exports = { assert, defer, waitForTime };
