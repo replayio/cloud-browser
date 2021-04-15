@@ -2,11 +2,9 @@ const fs = require("fs");
 const WebSocket = require("ws");
 const { launchBrowser } = require("./launcher");
 const { assert, defer } = require("../utils");
+const { getConfig } = require("./config");
 
-const { serverHost } = JSON.parse(fs.readFileSync(
-  `${process.env.HOME}/cloud-browser-config.json`
-));
-
+const { serverHost } = getConfig();
 assert(serverHost);
 
 let socket;
@@ -36,7 +34,6 @@ async function onSocketMessage(msg) {
   switch (msg.kind) {
   case "SpawnBrowser": {
     const browser = await launchBrowser({
-      serverHost,
       browserId: msg.browserId,
       url: msg.url,
     });
