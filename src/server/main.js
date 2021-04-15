@@ -58,7 +58,10 @@ function onRemoteMessage(msg) {
     remoteVideo.srcObject = event.stream;
   });
 
-  remoteWS = new WebSocket("wss://experiment-server.replay.io:8002");
+  const url = new URL(window.location.href);
+  const { hostname } = url;
+
+  remoteWS = new WebSocket(`wss://${hostname}:8002`);
   remoteWS.addEventListener("message", onRemoteMessage);
 
   const remoteConnectedWaiter = defer();
