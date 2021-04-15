@@ -78,6 +78,7 @@ class SocketInfo {
         this.onError(`Exception ${e.stack}`);
       }
     });
+    this.socket.on("close", () => this.close());
   }
 
   onError(why) {
@@ -87,8 +88,8 @@ class SocketInfo {
 
   close() {
     this.socket.close();
-    if (this.kind == "Viewer" && this.browserId) {
-      gBrowserIdToViewerSocket.delete(this.browserId);
+    if (this.kind == "Viewer") {
+      this.stopRecording();
     }
   }
 
@@ -131,6 +132,10 @@ class SocketInfo {
       assert(msg.url);
       this.startRecording(msg.url);
       break;
+    case "StopRecording":
+      assert(this.kind == "Viewer");
+      this.stopRecording();
+      break;
     case "IceCandidate":
       assert(this.kind == "Browser" || this.kind == "Viewer");
       this.sendMessageToPeerSocket({ kind: "IceCandidate", candidate: msg.candidate });
@@ -161,11 +166,12 @@ class SocketInfo {
 
   stopRecording() {
     const browserId = this.browserId;
-    if (browserId) {
+    if (!browserId) {
       return;
     }
     gBrowserIdToViewerSocket.delete(browserId);
     this.browserId = null;
+    this.peerSocketWaiter.promise.then(socket => socket.close());
     this.peerSocketWaiter = null;
     gBrowserManagerSocket.sendMessage({ kind: "StopBrowser", browserId });
   }

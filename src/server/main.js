@@ -59,7 +59,14 @@ stopRecordingButton.disabled = true;
 
 startRecordingButton.addEventListener("mousedown", () => {
   startRecordingButton.disabled = true;
+  stopRecordingButton.disabled = false;
   startRecording(urlInputElem.value || "https://google.com");
+});
+
+stopRecordingButton.addEventListener("mousedown", () => {
+  startRecordingButton.disabled = false;
+  stopRecordingButton.disabled = true;
+  stopRecording();
 });
 
 ////////////////////////////////////////////
@@ -117,6 +124,12 @@ function startRecording(url) {
   rtcConnection.addEventListener("addstream", event => {
     remoteVideo.srcObject = event.stream;
   });
+}
+
+function stopRecording() {
+  sendSocketMessage({ kind: "StopRecording" });
+  remoteVideo.srcObject = null;
+  rtcConnection = null;
 }
 
 ////////////////////////////////////////////
