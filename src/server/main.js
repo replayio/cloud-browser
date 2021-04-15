@@ -31,7 +31,7 @@ function onSocketMessage(msg) {
     addRTCOffer(msg.offer);
     break;
   default:
-    console.log("UnknownRemoteMessage", msg);
+    console.error("UnknownSocketMessage", msg);
   }
 }
 
@@ -41,30 +41,44 @@ async function sendSocketMessage(msg) {
 }
 
 ////////////////////////////////////////////
+// Button Handlers
+////////////////////////////////////////////
+
+const startRecordingButton = document.getElementById("startRecording");
+const stopRecordingButton = document.getElementById("stopRecording");
+const clearMessagesButton = document.getElementById("clearMessages");
+
+stopRecordingButton.disabled = true;
+
+startRecordingButton.addEventListener("mousedown", () => {
+  startRecordingButton.disabled = true;
+});
+
+////////////////////////////////////////////
 // RTC Connection
 ////////////////////////////////////////////
 
-let remotePeerConnection;
+// RTCPeerConnection for any recording being created.
+let rtcConnection;
 
-function handleRemoteConnection(event) {
-  const iceCandidate = event.candidate;
-  if (iceCandidate) {
-    sendSocketMessage({
-      kind: "IceCandidate",
-      candidate: iceCandidate,
-    });
+function addRTCIceCandidate(candidate) {
+  if (rtcConnection) {
+    rtcConnection.addIceCandidate(candidate);
   }
 }
 
-function addRTCIceCandidate(candidate) {
-  remotePeerConnection.addIceCandidate(candidate);
-}
-
 async function addRTCOffer(offer) {
-  remotePeerConnection.setRemoteDescription(offer);
-  const answer = await remotePeerConnection.createAnswer();
+  if (!rtcConnection) {
+    return;
+  }
+  rtcConnection.setRemoteDescription(offer);
 
-  remotePeerConnection.setLocalDescription(answer);
+  const answer = await rtcConnection.createAnswer();
+  if (!rtcConnection) {
+    return;
+  }
+
+  rtcConnection.setLocalDescription(answer);
   sendSocketMessage({
     kind: "Answer",
     answer,
@@ -73,8 +87,10 @@ async function addRTCOffer(offer) {
 
 const remoteVideo = document.getElementById("remoteVideo");
 
-(async () => {
-  remotePeerConnection = new RTCPeerConnection({
+function startRecording() {
+  console.log("NewConnection");
+
+  rtcConnection = new RTCPeerConnection({
     iceServers: [{
       urls: [
         "stun:stun.l.google.com:19302",
@@ -85,11 +101,19 @@ const remoteVideo = document.getElementById("remoteVideo");
     }],
   });
 
-  remotePeerConnection.addEventListener("icecandidate", handleRemoteConnection);
-  remotePeerConnection.addEventListener("addstream", event => {
+  rtcConnection.addEventListener("icecandidate", ({ candidate }) => {
+    if (candidate) {
+      sendSocketMessage({
+        kind: "IceCandidate",
+        candidate,
+      });
+    }
+  });
+  rtcConnection.addEventListener("addstream", event => {
     remoteVideo.srcObject = event.stream;
   });
-})();
+}
+startRecording();
 
 ////////////////////////////////////////////
 // Utilities
