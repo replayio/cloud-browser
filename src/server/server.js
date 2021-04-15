@@ -1,6 +1,8 @@
 const https = require("https");
 const fs = require("fs");
 const WebSocket = require("ws");
+const { v4: uuid } = require("uuid");
+const { defer } = require("../utils");
 
 // Port to listen on for websocket connections.
 const WSSPort = 8000;
@@ -39,8 +41,12 @@ const wssServer = new WebSocket.Server({ server: wssHTTPS });
 wssHTTPS.listen(WSSPort);
 wssServer.on("connection", socket => new SocketInfo(socket));
 
-let gBrowserSocket;
-let gViewerSocket;
+// Singleton browser manager socket.
+let gBrowserManagerSocket;
+
+// Every time a viewer socket wants to start recording, we create a browser for it.
+// Maps browser IDs to the original viewer socket.
+const gBrowserIdToViewerSocket = new Map();
 
 // Information about a websocket that has connected to us.
 class SocketInfo {
@@ -56,27 +62,34 @@ class SocketInfo {
     // Viewer: Client wanting to view/control a browser.
     this.kind = null;
 
-    // For Browser/Viewer sockets, any ICE candidates we've been sent.
-    this.iceCandidates = [];
+    // For Browser/Viewer sockets, any associated browser ID. This is always set
+    // for Browser sockets, and only set for Viewer sockets when they have started
+    // recording.
+    this.browserId = null;
 
-    // For Browser sockets, any RTC offer this has generated.
-    this.offer = null;
-
-    // For Browser/Viewer sockets, the peer socket for RTC connections if known.
-    this.peerSocket = null;
+    // For Browser/Viewer sockets, a waiter which will resolve with the peer socket.
+    // As above, only set for Viewer sockets which have started recording.
+    this.peerSocketWaiter = null;
 
     this.socket.on("message", msg => {
       try {
         this.onMessage(JSON.parse(msg));
       } catch (e) {
-        this.onError(`Exception ${e} ${e.stack}`);
+        this.onError(`Exception ${e.stack}`);
       }
     });
   }
 
   onError(why) {
     console.error(`Socket error ${why}, closing.`);
+    this.close();
+  }
+
+  close() {
     this.socket.close();
+    if (this.kind == "Viewer" && this.browserId) {
+      gBrowserIdToViewerSocket.delete(this.browserId);
+    }
   }
 
   onMessage(msg) {
@@ -86,17 +99,24 @@ class SocketInfo {
     if (msg.kind == "Identify") {
       this.kind = msg.socketKind;
       switch (this.kind) {
+      case "BrowserManager":
+        assert(!gBrowserManagerSocket);
+        gBrowserManagerSocket = this;
+        break;
       case "Browser":
-        assert(!gBrowserSocket);
-        assert(!gViewerSocket);
-        gBrowserSocket = this;
+        assert(msg.browserId);
+        this.browserId = msg.browserId;
+        const viewerSocket = gBrowserIdToViewerSocket.get(this.browserId);
+        if (viewerSocket && viewerSocket.browserId == this.browserId) {
+          this.peerSocketWaiter = defer();
+          this.peerSocketWaiter.resolve(viewerSocket);
+          viewerSocket.peerSocketWaiter.resolve(this);
+        } else {
+          this.close();
+          return;
+        }
         break;
       case "Viewer":
-        assert(gBrowserSocket);
-        assert(!gViewerSocket);
-        gViewerSocket = this;
-        gBrowserSocket.setPeerSocket(this);
-        this.setPeerSocket(gBrowserSocket);
         break;
       default:
         throw new Error(`Unknown socket kind ${this.kind}`);
@@ -106,52 +126,59 @@ class SocketInfo {
     assert(this.kind);
 
     switch (msg.kind) {
+    case "StartRecording":
+      assert(this.kind == "Viewer");
+      assert(msg.url);
+      this.startRecording(msg.url);
+      break;
     case "IceCandidate":
       assert(this.kind == "Browser" || this.kind == "Viewer");
-      this.iceCandidates.push(msg.candidate);
-      if (this.peerSocket) {
-        this.peerSocket.sendIceCandidate(msg.candidate);
-      }
+      this.sendMessageToPeerSocket({ kind: "IceCandidate", candidate: msg.candidate });
       break;
     case "Offer":
       assert(this.kind == "Browser");
-      this.offer = msg.offer;
-      if (this.peerSocket) {
-        this.peerSocket.sendOffer(msg.offer);
-      }
+      this.sendMessageToPeerSocket({ kind: "Offer", offer: msg.offer });
       break;
     case "Answer":
       assert(this.kind == "Viewer");
-      assert(this.peerSocket);
-      this.peerSocket.sendMessage({ kind: "Answer", answer: msg.answer });
+      this.sendMessageToPeerSocket({ kind: "Answer", answer: msg.answer });
       break;
     default:
       throw new Error(`Unknown message kind ${msg.kind}`);
     }
   }
 
+  startRecording(url) {
+    if (this.browserId) {
+      this.stopRecording();
+    }
+    const browserId = uuid();
+    this.browserId = browserId;
+    this.peerSocketWaiter = defer();
+    gBrowserIdToViewerSocket.set(browserId, this);
+    gBrowserManagerSocket.sendMessage({ kind: "SpawnBrowser", browserId, url });
+  }
+
+  stopRecording() {
+    const browserId = this.browserId;
+    if (browserId) {
+      return;
+    }
+    gBrowserIdToViewerSocket.delete(browserId);
+    this.browserId = null;
+    this.peerSocketWaiter = null;
+    gBrowserManagerSocket.sendMessage({ kind: "StopBrowser", browserId });
+  }
+
   sendMessage(msg) {
     this.socket.send(JSON.stringify(msg));
   }
 
-  sendIceCandidate(candidate) {
-    this.sendMessage({ kind: "IceCandidate", candidate });
-  }
-
-  sendOffer(offer) {
-    this.sendMessage({ kind: "Offer", offer });
-  }
-
-  setPeerSocket(socket) {
-    assert(!this.peerSocket);
-    this.peerSocket = socket;
-
-    if (this.offer) {
-      this.peerSocket.sendOffer(this.offer);
-    }
-
-    for (const candidate of this.iceCandidates) {
-      this.peerSocket.sendIceCandidate(candidate);
+  async sendMessageToPeerSocket(msg) {
+    const browserId = this.browserId;
+    const peerSocket = await this.peerSocketWaiter.promise;
+    if (peerSocket.browserId == browserId) {
+      peerSocket.sendMessage(msg);
     }
   }
 };
