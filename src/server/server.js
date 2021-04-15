@@ -101,7 +101,9 @@ class SocketInfo {
       this.kind = msg.socketKind;
       switch (this.kind) {
       case "BrowserManager":
-        assert(!gBrowserManagerSocket);
+        if (gBrowserManagerSocket) {
+          gBrowserManagerSocket.close();
+        }
         gBrowserManagerSocket = this;
         break;
       case "Browser":
@@ -136,6 +138,14 @@ class SocketInfo {
       assert(this.kind == "Viewer");
       this.stopRecording();
       break;
+    case "NewRecording":
+      assert(this.kind == "BrowserManager");
+      const { browserId, recordingId, url, dispatchServer } = msg;
+      const viewerSocket = gBrowserIdToViewerSocket.get(browserId);
+      if (viewerSocket) {
+        viewerSocket.sendMessage({ kind: "NewRecording", recordingId, url, dispatchServer });
+      }
+      break;
     case "IceCandidate":
       assert(this.kind == "Browser" || this.kind == "Viewer");
       this.sendMessageToPeerSocket({ kind: "IceCandidate", candidate: msg.candidate });
@@ -169,7 +179,10 @@ class SocketInfo {
     if (!browserId) {
       return;
     }
-    gBrowserIdToViewerSocket.delete(browserId);
+    // Note: gBrowserIdToViewerSocket will grow without bound. We can't clear it
+    // here because we might get recordings later on associated with this browser.
+    // This should be fixed.
+    //gBrowserIdToViewerSocket.delete(browserId);
     this.browserId = null;
     this.peerSocketWaiter.promise.then(socket => socket.close());
     this.peerSocketWaiter = null;

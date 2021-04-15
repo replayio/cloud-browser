@@ -36,6 +36,8 @@ function onSocketMessage(msg) {
   case "Offer":
     addRTCOffer(msg.offer);
     break;
+  case "NewRecording":
+    addNewRecording(msg.recordingId, msg.url, msg.dispatchServer);
   default:
     console.error("UnknownSocketMessage", msg);
   }
@@ -47,13 +49,14 @@ async function sendSocketMessage(msg) {
 }
 
 ////////////////////////////////////////////
-// Button Handlers
+// UI Interface
 ////////////////////////////////////////////
 
 const urlInputElem = document.getElementById("urlInput");
 const startRecordingButton = document.getElementById("startRecording");
 const stopRecordingButton = document.getElementById("stopRecording");
 const clearMessagesButton = document.getElementById("clearMessages");
+const messagesElem = document.getElementById("messages");
 
 stopRecordingButton.disabled = true;
 
@@ -68,6 +71,19 @@ stopRecordingButton.addEventListener("mousedown", () => {
   stopRecordingButton.disabled = true;
   stopRecording();
 });
+
+function addNewRecording(recordingId, url, dispatchServer) {
+  let viewUrl = `https://replay.io/view?id=${recordingId}`;
+  if (dispatchServer != "wss://dispatch.replay.io") {
+    viewUrl += `&dispatch=${dispatchServer}`;
+  }
+
+  const { hostname } = new URL(url);
+
+  const div = document.createElement("div");
+  div.innerText = `Recording created (${hostname}): ${viewUrl}`;
+  messagesElem.appendChild(div);
+}
 
 ////////////////////////////////////////////
 // RTC Connection
