@@ -50,6 +50,7 @@ async function sendSocketMessage(msg) {
 // Button Handlers
 ////////////////////////////////////////////
 
+const urlInputElem = document.getElementById("urlInput");
 const startRecordingButton = document.getElementById("startRecording");
 const stopRecordingButton = document.getElementById("stopRecording");
 const clearMessagesButton = document.getElementById("clearMessages");
@@ -58,6 +59,7 @@ stopRecordingButton.disabled = true;
 
 startRecordingButton.addEventListener("mousedown", () => {
   startRecordingButton.disabled = true;
+  startRecording(urlInputElem.value || "https://google.com");
 });
 
 ////////////////////////////////////////////
@@ -93,8 +95,8 @@ async function addRTCOffer(offer) {
 
 const remoteVideo = document.getElementById("remoteVideo");
 
-function startRecording() {
-  console.log("NewConnection");
+function startRecording(url) {
+  sendSocketMessage({ kind: "StartRecording", url });
 
   rtcConnection = new RTCPeerConnection({
     iceServers: [{
@@ -109,17 +111,13 @@ function startRecording() {
 
   rtcConnection.addEventListener("icecandidate", ({ candidate }) => {
     if (candidate) {
-      sendSocketMessage({
-        kind: "IceCandidate",
-        candidate,
-      });
+      sendSocketMessage({ kind: "IceCandidate", candidate });
     }
   });
   rtcConnection.addEventListener("addstream", event => {
     remoteVideo.srcObject = event.stream;
   });
 }
-startRecording();
 
 ////////////////////////////////////////////
 // Utilities
