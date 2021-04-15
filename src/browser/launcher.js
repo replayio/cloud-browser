@@ -24,5 +24,5 @@ assert(serverHost);
     height: 800,
   });
   await page.goto(url);
-  page.evaluate(startSharing, `wss://${serverHost}:8001`);
+  page.evaluate(startSharing, `wss://${serverHost}:8000`);
 })();

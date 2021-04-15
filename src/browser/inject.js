@@ -34,6 +34,8 @@ async function startSharing(serverAddress) {
   localWS.addEventListener("open", localConnectedWaiter.resolve);
   await localConnectedWaiter.promise;
 
+  localWS.send(JSON.stringify({ kind: "Identify", socketKind: "Browser" }));
+
   localStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
   localPeerConnection = new RTCPeerConnection({
