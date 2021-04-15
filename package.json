@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/RecordReplay/cloud-browser#readme",
   "dependencies": {
+    "puppeteer": "^8.0.0",
     "ws": "^7.4.4"
   }
 }
