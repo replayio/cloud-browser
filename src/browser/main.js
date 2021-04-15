@@ -30,18 +30,27 @@ function sendSocketMessage(msg) {
 
 const gBrowsersById = new Map();
 
-function onSocketMessage(msg) {
+async function onSocketMessage(msg) {
   msg = JSON.parse(msg);
 
   switch (msg.kind) {
-  case "SpawnBrowser":
-    const browser = launchBrowser({
+  case "SpawnBrowser": {
+    const browser = await launchBrowser({
       serverHost,
       browserId: msg.browserId,
       url: msg.url,
     });
     gBrowsersById.set(msg.browserId, browser);
     break;
+  }
+  case "StopBrowser": {
+    const browser = gBrowsersById.get(msg.browserId);
+    if (browser) {
+      browser.close();
+      gBrowsersById.delete(msg.browserId);
+    }
+    break;
+  }
   default:
     console.error("UnknownMessageKind", msg.kind);
   }

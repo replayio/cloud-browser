@@ -21,6 +21,7 @@ async function launchBrowser(options) {
   });
   await page.goto(url);
   page.evaluate(startSharing, `wss://${serverHost}:8000`, browserId);
+  return browser;
 }
 
 module.exports = { launchBrowser };
