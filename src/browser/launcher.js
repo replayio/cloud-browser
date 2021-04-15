@@ -1,15 +1,7 @@
-const fs = require("fs");
 const puppeteer = require('puppeteer');
 const { startSharing } = require("./inject");
-const { assert } = require("./utils");
 
-const { serverHost } = JSON.parse(fs.readFileSync(
-  `${process.env.HOME}/cloud-browser-config.json`
-));
-
-assert(serverHost);
-
-(async () => {
+async function launchBrowser(serverHost) {
   const url = "https://www.google.com";
   const browser = await puppeteer.launch({
     headless: false,
@@ -25,4 +17,6 @@ assert(serverHost);
   });
   await page.goto(url);
   page.evaluate(startSharing, `wss://${serverHost}:8000`);
-})();
+}
+
+module.exports = { launchBrowser };
