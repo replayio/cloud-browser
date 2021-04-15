@@ -1,45 +1,77 @@
-'use strict';
+"use strict";
 
-// Define peer connections, streams and video elements.
-const remoteVideo = document.getElementById('remoteVideo');
+////////////////////////////////////////////
+// Server Socket
+////////////////////////////////////////////
 
-let remotePeerConnection;
-let remoteWS;
+// WebSocket for communicating with server.
+let socket;
+let socketConnectedWaiter;
 
-function handleRemoteConnection(event) {
-  const iceCandidate = event.candidate;
-  if (iceCandidate) {
-    remoteWS.send(JSON.stringify({
-      kind: "IceCandidate",
-      candidate: iceCandidate,
-    }));
-  }
+function initSocket() {
+  const url = new URL(window.location.href);
+  const { hostname } = url;
+
+  socket = new WebSocket(`wss://${hostname}:8002`);
+  socket.addEventListener("message", onSocketMessage);
+
+  socketConnectedWaiter = defer();
+  socket.addEventListener("open", socketConnectedWaiter.resolve);
 }
+initSocket();
 
-function createdAnswer(description) {
-  remotePeerConnection.setLocalDescription(description);
-  remoteWS.send(JSON.stringify({
-    kind: "Answer",
-    answer: description,
-  }));
-}
-
-function onRemoteMessage(msg) {
+function onSocketMessage(msg) {
   msg = JSON.parse(msg.data);
 
   switch (msg.kind) {
   case "IceCandidate":
-    remotePeerConnection.addIceCandidate(msg.candidate);
+    addRTCIceCandidate(msg.candidate);
     break;
   case "Offer":
-    remotePeerConnection.setRemoteDescription(msg.offer);
-    remotePeerConnection.createAnswer()
-      .then(createdAnswer);
+    addRTCOffer(msg.offer);
     break;
   default:
     console.log("UnknownRemoteMessage", msg);
   }
 }
+
+async function sendSocketMessage(msg) {
+  await socketConnectedWaiter.promise;
+  socket.send(JSON.stringify(msg));
+}
+
+////////////////////////////////////////////
+// RTC Connection
+////////////////////////////////////////////
+
+let remotePeerConnection;
+
+function handleRemoteConnection(event) {
+  const iceCandidate = event.candidate;
+  if (iceCandidate) {
+    sendSocketMessage({
+      kind: "IceCandidate",
+      candidate: iceCandidate,
+    });
+  }
+}
+
+function addRTCIceCandidate(candidate) {
+  remotePeerConnection.addIceCandidate(candidate);
+}
+
+async function addRTCOffer(offer) {
+  remotePeerConnection.setRemoteDescription(offer);
+  const answer = await remotePeerConnection.createAnswer();
+
+  remotePeerConnection.setLocalDescription(answer);
+  sendSocketMessage({
+    kind: "Answer",
+    answer,
+  });
+}
+
+const remoteVideo = document.getElementById("remoteVideo");
 
 (async () => {
   remotePeerConnection = new RTCPeerConnection({
@@ -57,16 +89,6 @@ function onRemoteMessage(msg) {
   remotePeerConnection.addEventListener("addstream", event => {
     remoteVideo.srcObject = event.stream;
   });
-
-  const url = new URL(window.location.href);
-  const { hostname } = url;
-
-  remoteWS = new WebSocket(`wss://${hostname}:8002`);
-  remoteWS.addEventListener("message", onRemoteMessage);
-
-  const remoteConnectedWaiter = defer();
-  remoteWS.addEventListener("open", remoteConnectedWaiter.resolve);
-  await remoteConnectedWaiter.promise;
 })();
 
 ////////////////////////////////////////////
