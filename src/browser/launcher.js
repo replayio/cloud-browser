@@ -1,13 +1,17 @@
 const puppeteer = require('puppeteer');
 const { startSharing } = require("./inject");
 
-async function launchBrowser(serverHost) {
-  const url = "https://www.google.com";
+async function launchBrowser(options) {
+  const {
+    serverHost,
+    browserId,
+    url,
+  } = options;
   const browser = await puppeteer.launch({
     headless: false,
     args: [
       "--window-size=1000,800",
-      "--auto-select-desktop-capture-source=recorder",
+      `--auto-select-desktop-capture-source=${browserId}`,
     ],
   });
   const page = await browser.newPage();
@@ -16,7 +20,7 @@ async function launchBrowser(serverHost) {
     height: 800,
   });
   await page.goto(url);
-  page.evaluate(startSharing, `wss://${serverHost}:8000`);
+  page.evaluate(startSharing, `wss://${serverHost}:8000`, browserId);
 }
 
 module.exports = { launchBrowser };

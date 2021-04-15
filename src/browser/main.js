@@ -28,10 +28,20 @@ function sendSocketMessage(msg) {
   socket.send(JSON.stringify(msg));
 }
 
+const gBrowsersById = new Map();
+
 function onSocketMessage(msg) {
   msg = JSON.parse(msg);
 
   switch (msg.kind) {
+  case "SpawnBrowser":
+    const browser = launchBrowser({
+      serverHost,
+      browserId: msg.browserId,
+      url: msg.url,
+    });
+    gBrowsersById.set(msg.browserId, browser);
+    break;
   default:
     console.error("UnknownMessageKind", msg.kind);
   }
