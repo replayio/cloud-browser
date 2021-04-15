@@ -1,8 +1,8 @@
 
 // This script is injected into the browser process at startup to begin
 // screen sharing via the remote server.
-async function startSharing(serverAddress) {
-  document.title = "recorder";
+async function startSharing(serverAddress, browserId) {
+  document.title = browserId;
 
   let localStream;
   let localPeerConnection;
@@ -28,13 +28,18 @@ async function startSharing(serverAddress) {
   }
 
   localWS = new WebSocket(serverAddress);
+  localWS.addEventListener("close", () => console.log("SocketClosed"));
   localWS.addEventListener("message", onLocalMessage);
 
   const localConnectedWaiter = defer();
   localWS.addEventListener("open", localConnectedWaiter.resolve);
   await localConnectedWaiter.promise;
 
-  localWS.send(JSON.stringify({ kind: "Identify", socketKind: "Browser" }));
+  localWS.send(JSON.stringify({
+    kind: "Identify",
+    socketKind: "Browser",
+    browserId,
+  }));
 
   localStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
 
