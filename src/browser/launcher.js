@@ -1,5 +1,13 @@
+const fs = require("fs");
 const puppeteer = require('puppeteer');
 const { startSharing } = require("./inject");
+const { assert } = require("./utils");
+
+const { serverHost } = JSON.parse(fs.readFileSync(
+  `${process.env.HOME}/cloud-browser-config.json`
+));
+
+assert(serverHost);
 
 (async () => {
   const url = "https://www.google.com";
@@ -16,5 +24,5 @@ const { startSharing } = require("./inject");
     height: 800,
   });
   await page.goto(url);
-  page.evaluate(startSharing, "wss://experiment-server.replay.io:8001");
+  page.evaluate(startSharing, `wss://${serverHost}:8001`);
 })();
