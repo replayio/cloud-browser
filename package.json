@@ -1,0 +1,22 @@
+{
+  "name": "cloud-browser",
+  "version": "1.0.0",
+  "description": "Remote control of a recording chromium/linux browser in the cloud",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RecordReplay/cloud-browser.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/RecordReplay/cloud-browser/issues"
+  },
+  "homepage": "https://github.com/RecordReplay/cloud-browser#readme",
+  "dependencies": {
+    "ws": "^7.4.4"
+  }
+}
