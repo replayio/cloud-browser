@@ -38,7 +38,7 @@ async function onSocketMessage(msg) {
     break;
   case "StopBrowser":
     const recordings = await finishBrowser(msg.browserId);
-    for (const { recordingId, url, dispatchServer } of recordings) {
+    for (const { recordingId, url, dispatchServer } of recordings || []) {
       sendSocketMessage({
         kind: "NewRecording",
         browserId: msg.browserId,
