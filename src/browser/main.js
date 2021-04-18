@@ -1,6 +1,6 @@
 const fs = require("fs");
 const WebSocket = require("ws");
-const { launchBrowser, finishBrowser } = require("./launcher");
+const { launchBrowser, navigateBrowser, finishBrowser } = require("./launcher");
 const { assert, defer } = require("../utils");
 const { getConfig } = require("./config");
 
@@ -27,18 +27,19 @@ function sendSocketMessage(msg) {
 }
 
 async function onSocketMessage(msg) {
+  console.log("OnSocketMessage", msg);
   msg = JSON.parse(msg);
 
   switch (msg.kind) {
   case "SpawnBrowser":
-    launchBrowser({
-      browserId: msg.browserId,
-      url: msg.url,
-    });
+    launchBrowser(msg.browserId);
+    break;
+  case "NavigateBrowser":
+    navigateBrowser(msg.browserId, msg.url);
     break;
   case "StopBrowser":
     const recordings = await finishBrowser(msg.browserId);
-    for (const { recordingId, url, dispatchServer } of recordings) {
+    for (const { recordingId, url, dispatchServer } of recordings || []) {
       sendSocketMessage({
         kind: "NewRecording",
         browserId: msg.browserId,

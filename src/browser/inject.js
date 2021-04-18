@@ -2,8 +2,6 @@
 // This script is injected into the browser process at startup to begin
 // screen sharing via the remote server.
 async function startSharing(serverAddress, browserId) {
-  document.title = browserId;
-
   let localStream;
   let localPeerConnection;
   let localWS;
