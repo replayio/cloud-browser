@@ -15,7 +15,7 @@ assert(executablePath);
 assert(driverPath);
 assert(dispatchServer);
 
-const gBrowsersById = new Map();
+const gBrowserInfoById = new Map();
 
 function recordingIdFile(browserId) {
   return `/tmp/${browserId}-recordings.txt`;
@@ -25,11 +25,7 @@ function pidFile(browserId) {
   return `/tmp/${browserId}-pid.txt`;
 }
 
-async function launchBrowser(options) {
-  const {
-    browserId,
-    url,
-  } = options;
+async function launchBrowser(browserId) {
   const browser = await puppeteer.launch({
     headless: false,
     executablePath,
@@ -46,14 +42,23 @@ async function launchBrowser(options) {
       RECORD_REPLAY_PID_FILE: pidFile(browserId),
     },
   });
-  gBrowsersById.set(browserId, browser);
-  const page = await browser.newPage();
-  await page.setViewport({
+  const loadPage = await browser.newPage();
+  gBrowserInfoById.set(browserId, { browser, loadPage });
+  await loadPage.setViewport({
     width: 1000,
     height: 800,
   });
-  await page.goto(url);
-  page.evaluate(startSharing, `wss://${serverHost}:8000`, browserId);
+  await loadPage.goto(`https://${serverHost}/landing.html?title=${browserId}`);
+  const rtcPage = await browser.newPage();
+  await rtcPage.goto(`https://${serverHost}/landing.html`);
+  rtcPage.evaluate(startSharing, `wss://${serverHost}:8000`, browserId);
+}
+
+async function navigateBrowser(browserId, url) {
+  const info = gBrowserInfoById.get(browserId);
+  if (info) {
+    info.loadPage.goto(url);
+  }
 }
 
 // Wait for all recording subprocesses associated with a browser
@@ -86,16 +91,16 @@ async function waitForSubprocessesToExit(browserId) {
 }
 
 async function finishBrowser(browserId) {
-  const browser = gBrowsersById.get(browserId);
-  if (!browser) {
+  const info = gBrowserInfoById.get(browserId);
+  if (!info) {
     return;
   }
-  gBrowsersById.delete(browserId);
-  await browser.close();
+  gBrowserInfoById.delete(browserId);
+  await info.browser.close();
   await waitForSubprocessesToExit(browserId);
   const recordings = fs.readFileSync(recordingIdFile(browserId), "utf8")
                        .split("\n")
-                       .filter(id => id.length)
+                       .filter(id => id.length && !id.includes(serverHost))
                        .map(str => {
                          const [recordingId, url] = str.split(" ");
                          return { recordingId, url, dispatchServer };
@@ -105,4 +110,4 @@ async function finishBrowser(browserId) {
   return recordings;
 }
 
-module.exports = { launchBrowser, finishBrowser };
+module.exports = { launchBrowser, navigateBrowser, finishBrowser };
