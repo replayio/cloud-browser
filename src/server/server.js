@@ -13,7 +13,11 @@ const certOptions = {
 };
 
 const server = https.createServer(certOptions, (req, res) => {
-  const file = req.url == "/" ? "/index.html" : req.url;
+  let file = req.url == "/" ? "/index.html" : req.url;
+  const questionMark = file.indexOf("?");
+  if (questionMark != -1) {
+    file = file.substring(0, questionMark);
+  }
 
   try {
     const contents = fs.readFileSync(`${__dirname}${file}`, "utf8");
@@ -44,8 +48,26 @@ wssServer.on("connection", socket => new SocketInfo(socket));
 // Singleton browser manager socket.
 let gBrowserManagerSocket;
 
-// Every time a viewer socket wants to start recording, we create a browser for it.
-// Maps browser IDs to the original viewer socket.
+// Browsers we've created but haven't associated with a viewer socket yet.
+const gUnattachedBrowsers = [];
+
+class UnattachedBrowser {
+  constructor() {
+    // Unique ID for this browser.
+    this.browserId = uuid();
+
+    // Waiter which resolves with the socket.
+    this.socketWaiter = defer();
+
+    gBrowserManagerSocket.sendMessage({ kind: "SpawnBrowser", browserId: this.browserId });
+  }
+};
+
+function createUnattachedBrowser() {
+  gUnattachedBrowsers.push(new UnattachedBrowser());
+}
+
+// Maps browser IDs to the viewer socket which connected to it.
 const gBrowserIdToViewerSocket = new Map();
 
 // Information about a websocket that has connected to us.
@@ -105,19 +127,13 @@ class SocketInfo {
           gBrowserManagerSocket.close();
         }
         gBrowserManagerSocket = this;
+        gUnattachedBrowsers.length = 0;
+
+        // For now we always have one unattached browser kept in reserve.
+        createUnattachedBrowser();
         break;
       case "Browser":
-        assert(msg.browserId);
-        this.browserId = msg.browserId;
-        const viewerSocket = gBrowserIdToViewerSocket.get(this.browserId);
-        if (viewerSocket && viewerSocket.browserId == this.browserId) {
-          this.peerSocketWaiter = defer();
-          this.peerSocketWaiter.resolve(viewerSocket);
-          viewerSocket.peerSocketWaiter.resolve(this);
-        } else {
-          this.close();
-          return;
-        }
+        this.initializeBrowser(msg.browserId);
         break;
       case "Viewer":
         break;
@@ -163,15 +179,45 @@ class SocketInfo {
     }
   }
 
-  startRecording(url) {
+  initializeBrowser(browserId) {
+    assert(browserId);
+    this.browserId = browserId;
+    this.peerSocketWaiter = defer();
+
+    // This browser is either unattached, or has been associated with a viewer socket.
+    const viewerSocket = gBrowserIdToViewerSocket.get(browserId);
+    if (viewerSocket) {
+      if (viewerSocket.browserId == browserId) {
+        this.peerSocketWaiter.resolve(viewerSocket);
+        viewerSocket.peerSocketWaiter.resolve(this);
+      } else {
+        // The viewer stopped recording before we were able to connect.
+        this.close();
+      }
+    } else {
+      const unattached = gUnattachedBrowsers.find(entry => entry.browserId == browserId);
+      assert(unattached);
+      unattached.socketWaiter.resolve(this);
+    }
+  }
+
+  async startRecording(url) {
     if (this.browserId) {
       this.stopRecording();
     }
-    const browserId = uuid();
-    this.browserId = browserId;
-    this.peerSocketWaiter = defer();
-    gBrowserIdToViewerSocket.set(browserId, this);
-    gBrowserManagerSocket.sendMessage({ kind: "SpawnBrowser", browserId, url });
+    const unattached = gUnattachedBrowsers.shift();
+    assert(unattached);
+    createUnattachedBrowser();
+
+    this.browserId = unattached.browserId;
+    this.peerSocketWaiter = unattached.socketWaiter;
+    gBrowserIdToViewerSocket.set(this.browserId, this);
+
+    const socket = await this.peerSocketWaiter.promise;
+    if (this.browserId == unattached.browserId) {
+      socket.peerSocketWaiter.resolve(this);
+      gBrowserManagerSocket.sendMessage({ kind: "NavigateBrowser", browserId: this.browserId, url });
+    }
   }
 
   stopRecording() {

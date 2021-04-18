@@ -27,6 +27,7 @@ async function initSocket() {
 initSocket();
 
 function onSocketMessage(msg) {
+  console.log("OnSocketMessage", msg);
   msg = JSON.parse(msg.data);
 
   switch (msg.kind) {
@@ -38,6 +39,7 @@ function onSocketMessage(msg) {
     break;
   case "NewRecording":
     addNewRecording(msg.recordingId, msg.url, msg.dispatchServer);
+    break;
   default:
     console.error("UnknownSocketMessage", msg);
   }
