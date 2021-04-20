@@ -176,6 +176,31 @@ class SocketInfo {
       assert(this.kind == "Viewer");
       this.sendMessageToPeerSocket({ kind: "Answer", answer: msg.answer });
       break;
+    case "MouseEvent":
+      assert(this.kind == "Viewer");
+      if (this.browserId) {
+        const { type, x, y } = msg;
+        gBrowserManagerSocket.sendMessage({
+          kind: "MouseEvent",
+          browserId: this.browserId,
+          type,
+          x,
+          y,
+        });
+      }
+      break;
+    case "KeyboardEvent":
+      assert(this.kind == "Viewer");
+      if (this.browserId) {
+        const { type, key } = msg;
+        gBrowserManagerSocket.sendMessage({
+          kind: "KeyboardEvent",
+          browserId: this.browserId,
+          type,
+          key,
+        });
+      }
+      break;
     default:
       throw new Error(`Unknown message kind ${msg.kind}`);
     }

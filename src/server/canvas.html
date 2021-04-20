@@ -1,0 +1,25 @@
+<canvas id="canvas" width=600 height=600>
+<script>
+// This page is used for calibrating mouse events. See launcher.js
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+ctx.beginPath();
+ctx.rect(0, 0, canvas.width, canvas.height);
+ctx.fillStyle = "gray";
+ctx.fill();
+
+canvas.addEventListener("mousemove", event => {
+  let { offsetX, offsetY } = event;
+  console.log({ offsetX, offsetY });
+
+  ctx.beginPath();
+  ctx.rect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "red";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.rect(offsetX - 10, offsetY - 10, 20, 20);
+  ctx.fillStyle = "blue";
+  ctx.fill();
+});
+</script>

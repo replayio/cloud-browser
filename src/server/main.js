@@ -151,6 +151,41 @@ function stopRecording() {
 }
 
 ////////////////////////////////////////////
+// Event Listeners
+////////////////////////////////////////////
+
+function handleMouseEvent(event) {
+  if (!rtcConnection) {
+    return;
+  }
+
+  const { type, offsetX, offsetY } = event;
+  const x = offsetX / remoteVideo.offsetWidth;
+  const y = offsetY / remoteVideo.offsetHeight;
+  sendSocketMessage({ kind: "MouseEvent", type, x, y });
+}
+
+for (const event of ["mousedown", "mouseup", "click"]) {
+  remoteVideo.addEventListener(event, handleMouseEvent);
+}
+
+// Mousemove events are throttled to avoid spamming the server.
+remoteVideo.addEventListener("mousemove", throttle(handleMouseEvent, 100));
+
+function handleKeyboardEvent(event) {
+  if (!rtcConnection) {
+    return;
+  }
+
+  const { type, key } = event;
+  sendSocketMessage({ kind: "KeyboardEvent", type, key });
+}
+
+for (const event of ["keydown", "keyup", "keypress"]) {
+  document.addEventListener(event, handleKeyboardEvent);
+}
+
+////////////////////////////////////////////
 // Utilities
 ////////////////////////////////////////////
 
@@ -161,4 +196,18 @@ function defer() {
     reject = rej;
   });
   return { promise, resolve, reject };
+}
+
+function throttle(callback, time) {
+  let scheduled = false;
+  return (...args) => {
+    if (scheduled) {
+      return;
+    }
+    scheduled = true;
+    setTimeout(() => {
+      scheduled = false;
+      callback(...args);
+    }, time);
+  };
 }
