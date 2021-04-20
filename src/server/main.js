@@ -57,7 +57,6 @@ async function sendSocketMessage(msg) {
 const urlInputElem = document.getElementById("urlInput");
 const startRecordingButton = document.getElementById("startRecording");
 const stopRecordingButton = document.getElementById("stopRecording");
-const clearMessagesButton = document.getElementById("clearMessages");
 const messagesElem = document.getElementById("messages");
 
 stopRecordingButton.disabled = true;
@@ -121,6 +120,7 @@ async function addRTCOffer(offer) {
 const remoteVideo = document.getElementById("remoteVideo");
 
 function startRecording(url) {
+  messagesElem.innerHTML = "";
   sendSocketMessage({ kind: "StartRecording", url });
 
   rtcConnection = new RTCPeerConnection({
