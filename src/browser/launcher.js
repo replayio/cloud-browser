@@ -25,13 +25,21 @@ function pidFile(browserId) {
   return `/tmp/${browserId}-pid.txt`;
 }
 
+// For now we use fixed tab dimensions.
+const TabWidth = 1000;
+const TabHeight = 700;
+
 async function launchBrowser(browserId) {
   const browser = await puppeteer.launch({
     headless: false,
     executablePath,
     dumpio: true,
     args: [
-      "--window-size=1000,800",
+      // This really sucks, but the window sizes and tab heights have been
+      // calibrated to avoid problems where mouse events land in the wrong
+      // spot. See the server/canvas.html site for testing. This needs to
+      // get investigated and fixed.
+      `--window-size=${TabWidth},${TabHeight+180}`,
       `--auto-select-desktop-capture-source=${browserId}`,
     ],
     env: {
@@ -45,8 +53,8 @@ async function launchBrowser(browserId) {
   const loadPage = await browser.newPage();
   gBrowserInfoById.set(browserId, { browser, loadPage });
   await loadPage.setViewport({
-    width: 1000,
-    height: 800,
+    width: TabWidth,
+    height: TabHeight,
   });
   await loadPage.goto(`https://${serverHost}/landing.html?title=${browserId}`);
   const rtcPage = await browser.newPage();
@@ -58,6 +66,51 @@ async function navigateBrowser(browserId, url) {
   const info = gBrowserInfoById.get(browserId);
   if (info) {
     info.loadPage.goto(url);
+  }
+}
+
+async function onBrowserMouseEvent(browserId, type, x, y) {
+  const info = gBrowserInfoById.get(browserId);
+  if (info) {
+    const pixelx = Math.round(x * TabWidth);
+    const pixely = Math.round(y * TabHeight);
+    switch (type) {
+    case "mousemove":
+      info.loadPage.mouse.move(pixelx, pixely);
+      break;
+    case "mousedown":
+      info.loadPage.mouse.down(pixelx, pixely);
+      break;
+    case "mouseup":
+      info.loadPage.mouse.up(pixelx, pixely);
+      break;
+    case "click":
+      info.loadPage.mouse.click(pixelx, pixely);
+      break;
+    default:
+      console.error(`Unknown mouse event ${type}`);
+    }
+  }
+}
+
+async function onBrowserKeyboardEvent(browserId, type, key) {
+  const info = gBrowserInfoById.get(browserId);
+  if (info) {
+    switch (type) {
+    case "keydown":
+      // For now we ignore keydown/keyup events. Sending all the
+      // events we get to the page will cause keys to be typed twice.
+      //info.loadPage.keyboard.down(key);
+      break;
+    case "keyup":
+      //info.loadPage.keyboard.up(key);
+      break;
+    case "keypress":
+      info.loadPage.keyboard.press(key);
+      break;
+    default:
+      console.error(`Unknown keyboard event ${type}`);
+    }
   }
 }
 
@@ -110,4 +163,10 @@ async function finishBrowser(browserId) {
   return recordings;
 }
 
-module.exports = { launchBrowser, navigateBrowser, finishBrowser };
+module.exports = {
+  launchBrowser,
+  navigateBrowser,
+  onBrowserMouseEvent,
+  onBrowserKeyboardEvent,
+  finishBrowser,
+};

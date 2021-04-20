@@ -1,6 +1,12 @@
 const fs = require("fs");
 const WebSocket = require("ws");
-const { launchBrowser, navigateBrowser, finishBrowser } = require("./launcher");
+const {
+  launchBrowser,
+  navigateBrowser,
+  finishBrowser,
+  onBrowserMouseEvent,
+  onBrowserKeyboardEvent,
+} = require("./launcher");
 const { assert, defer } = require("../utils");
 const { getConfig } = require("./config");
 
@@ -36,6 +42,12 @@ async function onSocketMessage(msg) {
     break;
   case "NavigateBrowser":
     navigateBrowser(msg.browserId, msg.url);
+    break;
+  case "MouseEvent":
+    onBrowserMouseEvent(msg.browserId, msg.type, msg.x, msg.y);
+    break;
+  case "KeyboardEvent":
+    onBrowserKeyboardEvent(msg.browserId, msg.type, msg.key);
     break;
   case "StopBrowser":
     const recordings = await finishBrowser(msg.browserId);

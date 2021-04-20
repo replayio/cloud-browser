@@ -2,6 +2,8 @@
 // This script is injected into the browser process at startup to begin
 // screen sharing via the remote server.
 async function startSharing(serverAddress, browserId) {
+  console.log("StartSharing");
+
   let localStream;
   let localPeerConnection;
   let localWS;
@@ -58,6 +60,7 @@ async function startSharing(serverAddress, browserId) {
     .then(createdOffer);
 
   function onLocalMessage(msg) {
+    console.log("OnSocketMessage", msg.data);
     msg = JSON.parse(msg.data);
 
     switch (msg.kind) {
