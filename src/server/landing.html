@@ -1,0 +1,10 @@
+<div>
+  Landing Page
+</div>
+<script>
+const url = new URL(window.location.href);
+const title = url.searchParams.get("title");
+if (title) {
+  document.title = title;
+}
+</script>
