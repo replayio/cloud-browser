@@ -1,5 +1,3 @@
-// Usage: node ../restart.js ~/server.log server
-
 const https = require("https");
 const fs = require("fs");
 const WebSocket = require("ws");
@@ -125,6 +123,8 @@ class SocketInfo {
       this.kind = msg.socketKind;
       switch (this.kind) {
       case "BrowserManager":
+        // This is insecure. We need to use a separate socket for the
+        // browser manager and protect it from access outside the VPC.
         if (gBrowserManagerSocket) {
           gBrowserManagerSocket.close();
         }
