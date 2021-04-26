@@ -170,7 +170,22 @@ for (const event of ["mousedown", "mouseup", "click"]) {
 }
 
 // Mousemove events are throttled to avoid spamming the server.
-remoteVideo.addEventListener("mousemove", throttle(handleMouseEvent, 100));
+let gLastMouseMoveX, gLastMouseMoveY;
+const sendMouseMoveMessage = throttle(() => {
+  sendSocketMessage({
+    kind: "MouseEvent",
+    type: "mousemove",
+    x: gLastMouseMoveX,
+    y: gLastMouseMoveY,
+  });
+}, 100);
+function handleMouseMoveEvent(event) {
+  const { type, offsetX, offsetY } = event;
+  gLastMouseMoveX = offsetX / remoteVideo.offsetWidth;
+  gLastMouseMoveY = offsetY / remoteVideo.offsetHeight;
+  sendMouseMoveMessage();
+}
+remoteVideo.addEventListener("mousemove", handleMouseMoveEvent);
 
 function handleKeyboardEvent(event) {
   if (!rtcConnection) {
