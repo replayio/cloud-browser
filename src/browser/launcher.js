@@ -6,13 +6,9 @@ const { assert, waitForTime } = require("../utils");
 
 const {
   serverHost,
-  executablePath,
-  driverPath,
   dispatchServer,
 } = getConfig();
 assert(serverHost);
-assert(executablePath);
-assert(driverPath);
 assert(dispatchServer);
 
 const gBrowserInfoById = new Map();
@@ -25,14 +21,24 @@ function pidFile(browserId) {
   return `/tmp/${browserId}-pid.txt`;
 }
 
+let gExecutablePath;
+let gDriverPath;
+
+function setExecutableAndDriverPaths(executablePath, driverPath) {
+  gExecutablePath = executablePath;
+  gDriverPath = driverPath;
+}
+
 // For now we use fixed tab dimensions.
 const TabWidth = 1000;
 const TabHeight = 700;
 
 async function launchBrowser(browserId) {
+  assert(gExecutablePath);
+  assert(gDriverPath);
   const browser = await puppeteer.launch({
     headless: false,
-    executablePath,
+    executablePath: gExecutablePath,
     dumpio: true,
     args: [
       // This really sucks, but the window sizes and tab heights have been
@@ -44,8 +50,8 @@ async function launchBrowser(browserId) {
     ],
     env: {
       ...process.env,
-      RECORD_REPLAY_DRIVER: driverPath,
-      RECORD_REPLAY_DISPATCH: dispatchServer,
+      RECORD_REPLAY_DRIVER: gDriverPath,
+      RECORD_REPLAY_SERVER: dispatchServer,
       RECORD_REPLAY_RECORDING_ID_FILE: recordingIdFile(browserId),
       RECORD_REPLAY_PID_FILE: pidFile(browserId),
     },
@@ -164,6 +170,7 @@ async function finishBrowser(browserId) {
 }
 
 module.exports = {
+  setExecutableAndDriverPaths,
   launchBrowser,
   navigateBrowser,
   onBrowserMouseEvent,
