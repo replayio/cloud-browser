@@ -1,7 +1,18 @@
-<canvas id="canvas" width=600 height=600>
+<canvas id="canvas">
+<style>
+#canvas {
+  position:fixed;
+  left:0;
+  top:0;
+}
+</style>
 <script>
 // This page is used for calibrating mouse events. See launcher.js
 const canvas = document.getElementById("canvas");
+
+canvas.width = document.body.clientWidth;
+canvas.height = document.body.clientHeight;
+
 const ctx = canvas.getContext("2d");
 
 ctx.beginPath();

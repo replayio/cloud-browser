@@ -176,6 +176,18 @@ class SocketInfo {
       assert(this.kind == "Viewer");
       this.sendMessageToPeerSocket({ kind: "Answer", answer: msg.answer });
       break;
+    case "ResizeEvent":
+      assert(this.kind == "Viewer");
+      if (this.browserId) {
+        const { width, height } = msg;
+        gBrowserManagerSocket.sendMessage({
+          kind: "ResizeEvent",
+          browserId: this.browserId,
+          width,
+          height,
+        });
+      }
+      break;
     case "MouseEvent":
       assert(this.kind == "Viewer");
       if (this.browserId) {

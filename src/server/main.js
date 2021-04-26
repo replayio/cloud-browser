@@ -142,6 +142,8 @@ function startRecording(url) {
   rtcConnection.addEventListener("addstream", event => {
     remoteVideo.srcObject = event.stream;
   });
+
+  handleResizeEvent();
 }
 
 function stopRecording() {
@@ -153,6 +155,19 @@ function stopRecording() {
 ////////////////////////////////////////////
 // Event Listeners
 ////////////////////////////////////////////
+
+function handleResizeEvent() {
+  if (!rtcConnection) {
+    return;
+  }
+
+  sendSocketMessage({
+    kind: "ResizeEvent",
+    width: remoteVideo.clientWidth,
+    height: remoteVideo.clientHeight,
+  });
+}
+window.addEventListener("resize", throttle(handleResizeEvent, 200));
 
 function handleMouseEvent(event) {
   if (!rtcConnection) {
