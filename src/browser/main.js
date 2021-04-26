@@ -5,6 +5,7 @@ const {
   launchBrowser,
   navigateBrowser,
   finishBrowser,
+  onBrowserResizeEvent,
   onBrowserMouseEvent,
   onBrowserKeyboardEvent,
 } = require("./launcher");
@@ -45,6 +46,9 @@ async function onSocketMessage(msg) {
     break;
   case "NavigateBrowser":
     navigateBrowser(msg.browserId, msg.url);
+    break;
+  case "ResizeEvent":
+    onBrowserResizeEvent(msg.browserId, msg.width, msg.height);
     break;
   case "MouseEvent":
     onBrowserMouseEvent(msg.browserId, msg.type, msg.x, msg.y);

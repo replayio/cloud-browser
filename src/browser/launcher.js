@@ -29,9 +29,16 @@ function setExecutableAndDriverPaths(executablePath, driverPath) {
   gDriverPath = driverPath;
 }
 
-// For now we use fixed tab dimensions.
-const TabWidth = 1000;
-const TabHeight = 700;
+// Initial dimensions for tabs in new browsers.
+const DefaultTabWidth = 1000;
+const DefaultTabHeight = 700;
+
+// Extra width/height of a window compared to the viewport of one of its
+// tabs. In order for screen sharing to capture the entire tab and avoid
+// problems mapping mouse events in the screen shared video back to the
+// tab, we make sure the window has these extra dimensions when resizing.
+const WindowExtraWidth = 5;
+const WindowExtraHeight = 180;
 
 async function launchBrowser(browserId) {
   assert(gExecutablePath);
@@ -41,11 +48,7 @@ async function launchBrowser(browserId) {
     executablePath: gExecutablePath,
     dumpio: true,
     args: [
-      // This really sucks, but the window sizes and tab heights have been
-      // calibrated to avoid problems where mouse events land in the wrong
-      // spot. See the server/canvas.html site for testing. This needs to
-      // get investigated and fixed.
-      `--window-size=${TabWidth},${TabHeight+180}`,
+      `--window-size=${DefaultTabWidth+WindowExtraWidth},${DefaultTabHeight+WindowExtraHeight}`,
       `--auto-select-desktop-capture-source=${browserId}`,
     ],
     env: {
@@ -57,10 +60,18 @@ async function launchBrowser(browserId) {
     },
   });
   const loadPage = await browser.newPage();
-  gBrowserInfoById.set(browserId, { browser, loadPage });
+  gBrowserInfoById.set(
+    browserId,
+    {
+      browser,
+      loadPage,
+      width: DefaultTabWidth,
+      height: DefaultTabHeight,
+    }
+  );
   await loadPage.setViewport({
-    width: TabWidth,
-    height: TabHeight,
+    width: DefaultTabWidth,
+    height: DefaultTabHeight,
   });
   await loadPage.goto(`https://${serverHost}/landing.html?title=${browserId}`);
   const rtcPage = await browser.newPage();
@@ -75,11 +86,31 @@ async function navigateBrowser(browserId, url) {
   }
 }
 
+async function onBrowserResizeEvent(browserId, width, height) {
+  const info = gBrowserInfoById.get(browserId);
+  if (!info) {
+    return;
+  }
+  info.width = width;
+  info.height = height;
+  await info.loadPage.setViewport({ width, height });
+
+  const session = await info.loadPage.target().createCDPSession();
+  const { windowId } = await session.send("Browser.getWindowForTarget");
+  await session.send("Browser.setWindowBounds", {
+    windowId,
+    bounds: {
+      width: width + WindowExtraWidth,
+      height: height + WindowExtraHeight,
+    },
+  });
+}
+
 async function onBrowserMouseEvent(browserId, type, x, y) {
   const info = gBrowserInfoById.get(browserId);
   if (info) {
-    const pixelx = Math.round(x * TabWidth);
-    const pixely = Math.round(y * TabHeight);
+    const pixelx = Math.round(x * info.width);
+    const pixely = Math.round(y * info.height);
     switch (type) {
     case "mousemove":
       info.loadPage.mouse.move(pixelx, pixely);
@@ -173,6 +204,7 @@ module.exports = {
   setExecutableAndDriverPaths,
   launchBrowser,
   navigateBrowser,
+  onBrowserResizeEvent,
   onBrowserMouseEvent,
   onBrowserKeyboardEvent,
   finishBrowser,
