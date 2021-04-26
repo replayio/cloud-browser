@@ -1,9 +1,14 @@
 const fs = require("fs");
 
+let gConfig;
+
 function getConfig() {
-  return JSON.parse(fs.readFileSync(
-    `${process.env.HOME}/cloud-browser-config.json`
-  ));
+  if (!gConfig) {
+    gConfig = JSON.parse(fs.readFileSync(
+      `${process.env.HOME}/cloud-browser-config.json`
+    ));
+  }
+  return gConfig;
 }
 
 module.exports = { getConfig };

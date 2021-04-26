@@ -15,11 +15,12 @@ Create another instance (or use the same one, whatever), with a `cloud-browser-c
 ```
 {
   "serverHost": "record.replay.io",
-  "executablePath": "/path/to/chrome",
-  "driverPath": "/path/to/linux-recordreplay.so",
+  "browserDir": "/path/to/browser-dir",
   "dispatchServer": "wss://dispatch.replay.io"
 }
 ```
+
+The browser directory will be used to download the browser and driver and keep them updated automatically. For testing, "executablePath" and "driverPath" can be specified instead, in which case automatic updates won't occur.
 
 Configure the instance so that chrome will run (tested on an EC2 ubuntu image):
 

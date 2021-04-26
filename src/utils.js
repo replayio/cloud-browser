@@ -1,3 +1,5 @@
+const { spawn } = require("child_process");
+
 function assert(v) {
   if (!v) {
     throw new Error("Assertion failed!");
@@ -17,4 +19,35 @@ function waitForTime(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-module.exports = { assert, defer, waitForTime };
+async function spawnAsync(command, args, options) {
+  const process = spawn(command, args, options);
+
+  const [stdout] = await Promise.all([
+    (async () => {
+      if (!process.stdout) {
+        return "";
+      }
+
+      const parts = [];
+      for await (const chunk of process.stdout) {
+        parts.push(chunk);
+      }
+      return Buffer.concat(parts).toString();
+    })(),
+    new Promise((resolve, reject) => {
+      process.on("error", reject);
+      process.on("exit", code => {
+        if (code !== 0) {
+          reject(new Error(`spawnAsync failed: ${command} ${args}`));
+        } else {
+          resolve();
+        }
+      });
+    }),
+  ]);
+
+  return { stdout };
+}
+
+
+module.exports = { assert, defer, waitForTime, spawnAsync };
