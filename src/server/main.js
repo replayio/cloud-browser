@@ -82,7 +82,7 @@ function addNewRecording(recordingId, url, dispatchServer) {
   const { hostname } = new URL(url);
 
   const div = document.createElement("div");
-  div.innerText = `Recording created (${hostname}): ${viewUrl}`;
+  div.innerHTML = `Recording created (${hostname}): <a href="${viewUrl}">${viewUrl}</a>`;
   messagesElem.appendChild(div);
 }
 
