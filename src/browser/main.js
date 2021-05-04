@@ -129,9 +129,22 @@ async function checkForJSONUpdate(browserDir, file) {
   return null;
 }
 
+async function setBrowserDirPaths(browserDir) {
+  const json = await readJSON(`${browserDir}/linux-replay-chromium.json`);
+  const { buildId } = json;
+  assert(buildId);
+
+  setExecutableAndDriverPaths(
+    `${browserDir}/${buildId}/chrome`,
+    `${browserDir}/linux-recordreplay.so`
+  );
+}
+
 async function updateChrome(browserDir) {
   const json = await checkForJSONUpdate(browserDir, "linux-replay-chromium.json");
   if (!json) {
+    // We still need to set the executable path if we're just starting up.
+    await setBrowserDirPaths(browserDir);
     return;
   }
 
@@ -160,15 +173,18 @@ async function updateChrome(browserDir) {
   );
 
   await spawnAsync(
+    "rm",
+    ["-rf", `${browserDir}/${buildId}`],
+    { stdio: "inherit" }
+  );
+
+  await spawnAsync(
     "mv",
     [`${browserDir}/replay-chromium`, `${browserDir}/${buildId}`],
     { stdio: "inherit" }
   );
 
-  setExecutableAndDriverPaths(
-    `${browserDir}/${buildId}/chrome`,
-    `${browserDir}/linux-recordreplay.so`
-  );
+  await setBrowserDirPaths(browserDir);
 }
 
 async function updateDriver(browserDir) {
